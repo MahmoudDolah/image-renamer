@@ -5,8 +5,11 @@ import json
 import urllib
 import argparse
 import requests
-from os import listdir
-from os.path import isfile, join
+import urllib.parse
+from urllib.request import urlretrieve
+from bs4 import BeautifulSoup
+import shutil
+from os.path import join
 import http.client as httplib
 import api_keys
 
@@ -22,11 +25,20 @@ def is_exists(path):
         return False
 
 
-def get_all_images(dir):
-    if is_exists(dir):
-        files = [f for f in listdir(dir) if isfile(join(dir, f))]
-        images = [f for f in files for ext in ALLOWED_IMAGE_EXTENSIONS if f.lower().endswith(ext.lower())]
-        return images
+def get_all_images(url, dir):
+    page = requests.get(url)
+    soup = BeautifulSoup(page.text, "html.parser")
+    images = []
+    #os.mkdir('pic_temp', 777)
+    for img in soup.select('img'):
+        img_url = urllib.parse.urljoin(url, img['src'])
+        temp_name = img['src'].split('/')[-1]
+        urlretrieve(img_url, temp_name)
+        images.append(temp_name)
+        temp_path = os.path.abspath(temp_name)
+        perm_path = dir + temp_name
+        os.rename(temp_path, perm_path)
+    return images
 
 
 def get_extension(file):
@@ -75,26 +87,33 @@ def upload(image_address):
 
 
 def full_path(base, file):
-    return base + "/" + file
+    if base[-1] is not "/":
+        return base + "/" + file
+    else:
+        return base + file
 
 
-def init(dir):
-    images = get_all_images(dir)
-    for image in images:
-        file = full_path(dir, image)
-        print("Processing image - ", image)
-        image_url = upload(file)
+def init(url, dir):
+    print(url)
+    print(dir)
+    images = get_all_images(url, dir)
+    for image_name in images:
+        file_path = dir + image_name
+        print("Processing image - ", image_name)
+        print(file_path)
+        image_url = upload(file_path)
         new_name = get_caption(image_url)
-        rename_img(file, new_name, dir)
+        rename_img(image_name, new_name, dir)
 
 
 def arg_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('dir', help="Absolute path of image directory", type=str)
+    parser.add_argument('url', help="Url of web page with images to scrape", type=str)
+    parser.add_argument('dir', help="Directory to place the images", type=str)
     args = parser.parse_args()
 
     try:
-        init(args.dir)
+        init(args.url, args.dir)
     except ValueError:
         print("Try again")
 

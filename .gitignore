@@ -89,3 +89,5 @@ ENV/
 .ropeproject
 
 api_keys.py
+.vscode
+pics/
